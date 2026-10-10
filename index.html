@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador de Robots ITM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Concepto: banco de pruebas de electrónica. Pista negra al centro como en la competencia,
+   paneles tipo instrumento a los lados; verde de máscara de soldadura y cobre como acentos. */
+:root {
+  --bg: #e9eeeb; --panel: #ffffff; --panel-2: #f4f7f5; --ink: #15201a; --muted: #5a6b62; --line: #d0d9d4;
+  --accent: #1b7a4e; --accent-ink: #ffffff; --copper: #b06a24; --ok: #1d8a50; --warn: #a8700f; --danger: #c0352a;
+  --floor: #111413; --wall: #e8e4d8; --pcb: #1f6b43; --code-bg: #f7faf8;
+  --f-display: "Chakra Petch", "Bahnschrift", "Segoe UI", sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1210; --panel: #141b18; --panel-2: #1a2320; --ink: #e2ebe6; --muted: #8ea097; --line: #26322d;
+    --accent: #3cc486; --accent-ink: #062014; --copper: #e3a35c; --ok: #45c486; --warn: #e2b04a; --danger: #ff7466;
+    --floor: #050706; --wall: #d9d4c6; --pcb: #2b8a58; --code-bg: #0f1513; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1210; --panel: #141b18; --panel-2: #1a2320; --ink: #e2ebe6; --muted: #8ea097; --line: #26322d;
+  --accent: #3cc486; --accent-ink: #062014; --copper: #e3a35c; --ok: #45c486; --warn: #e2b04a; --danger: #ff7466;
+  --floor: #050706; --wall: #d9d4c6; --pcb: #2b8a58; --code-bg: #0f1513; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); margin: 0; }
+.wrap { padding-inline: 16px; padding-block: 12px 24px; max-width: 1680px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font: 700 22px/1 var(--f-display); letter-spacing: .02em; margin: 0; }
+.brand span { color: var(--muted); font-size: 13px; }
+nav.robots { display: flex; gap: 4px; flex-wrap: wrap; }
+nav.robots button { font: 600 13px var(--f-body); border: 1px solid var(--line); background: var(--panel); color: var(--muted); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+nav.robots button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+nav.robots button:disabled { cursor: not-allowed; opacity: .75; }
+nav.robots small { font-weight: 500; opacity: .8; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px; }
+.toolbar .sep { width: 1px; align-self: stretch; background: var(--line); }
+button, select, input, textarea { font: inherit; color: inherit; }
+.btn { border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 104px; }
+.btn.danger { color: var(--danger); }
+.btn:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, nav button:focus-visible, .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select, input[type="number"], input[type="text"] { border: 1px solid var(--line); background: var(--panel-2); border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.toggles { display: flex; flex-wrap: wrap; gap: 10px; }
+.canvas-box { position: relative; padding: 8px; }
+#field { display: block; width: 100%; height: auto; border-radius: 6px; background: var(--floor); touch-action: none; }
+.banner { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; font: 600 15px var(--f-display); letter-spacing: .02em; box-shadow: 0 4px 20px rgb(0 0 0 / .35); max-width: calc(100% - 32px); text-align: center; }
+.banner.ok { background: var(--ok); color: #fff; }
+.banner.bad { background: var(--danger); color: #fff; }
+.edit-hint { position: absolute; left: 16px; bottom: 16px; background: rgb(0 0 0 / .7); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; align-items: stretch; }
+.status .stat { flex: 1 1 140px; }
+.status .timer { flex: 0 0 auto; min-width: 150px; }
+.timer { font: 700 34px/1 var(--f-display); font-variant-numeric: tabular-nums; letter-spacing: .02em; padding-right: 8px; display: flex; flex-direction: column; gap: 6px; }
+.timer small { font: 500 11px var(--f-body); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.chip { display: inline-block; font: 600 12px var(--f-body); padding: 2px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.chip.running { color: var(--accent); border-color: var(--accent); }
+.chip.done { background: var(--ok); color: #fff; border-color: var(--ok); }
+.chip.dq, .chip.error { background: var(--danger); color: #fff; border-color: var(--danger); }
+.stat { background: var(--panel-2); border-radius: 6px; padding: 6px 10px; min-width: 0; }
+.stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.stat .v { font: 600 16px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .v.warn { color: var(--warn); } .stat .v.bad { color: var(--danger); }
+.meter { height: 4px; background: var(--line); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--warn); width: 0; }
+.instr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; padding: 10px; }
+@media (max-width: 760px) { .instr { grid-template-columns: minmax(0, 1fr); } }
+.instr h3, .panel h3 { font: 600 12px var(--f-body); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 6px; }
+.irbars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; align-items: end; }
+.irbar { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+.irbar .tube { width: 100%; height: 70px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; position: relative; overflow: hidden; }
+.irbar .tube i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--copper); }
+.irbar b { font: 600 12px var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 4px 12px; margin-top: 8px; font-size: 12px; }
+.kv div { display: flex; justify-content: space-between; gap: 6px; border-bottom: 1px dashed var(--line); padding: 2px 0; }
+.kv span { color: var(--muted); } .kv b { font: 600 12px var(--f-mono); font-variant-numeric: tabular-nums; }
+#tele { width: 100%; height: 120px; display: block; }
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); margin-top: 4px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 4px; }
+/* Panel lateral */
+.side { display: flex; flex-direction: column; min-width: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 8px 10px; font: 600 13px var(--f-body); color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.panel { padding: 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel p { margin: 0; color: var(--muted); font-size: 13px; max-width: 65ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--panel-2); padding: 5px 10px; font: 600 12px var(--f-body); color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+textarea.code { width: 100%; min-height: 380px; resize: vertical; font: 12.5px/1.5 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; tab-size: 2; white-space: pre; overflow: auto; }
+textarea.json { width: 100%; min-height: 120px; font: 11px/1.4 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.group { border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.group > h4 { margin: 0; font: 600 13px var(--f-body); }
+.slider { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 2px 8px; align-items: center; font-size: 12.5px; }
+.slider label { color: var(--ink); }
+.slider output { font: 600 12px var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.slider small { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; }
+.formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.formgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; background: var(--panel-2); position: sticky; top: 0; }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.pill.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.pill.bad { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+#hist { width: 100%; height: 110px; display: block; }
+.log { font: 12px/1.45 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; height: 460px; overflow: auto; }
+.log div { white-space: pre-wrap; word-break: break-word; }
+.log .t { color: var(--muted); margin-right: 8px; }
+.log .warn { color: var(--warn); } .log .err { color: var(--danger); } .log .ok { color: var(--ok); } .log .sys { color: var(--accent); }
+.help { font-size: 13px; }
+.help code { font: 12px var(--f-mono); background: var(--panel-2); padding: 1px 4px; border-radius: 4px; }
+.help h4 { margin: 10px 0 4px; font: 600 13px var(--f-body); }
+.help ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.help li { margin: 2px 0; }
+.note { font-size: 12px; color: var(--muted); border-left: 3px solid var(--copper); padding-left: 8px; }
+@media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Simulador de Robots ITM</h1><span>pruebas de código antes de soldar</span></div>
+    <nav class="robots" aria-label="Robot">
+      <button type="button" id="tabMouse" aria-pressed="true">Micromouse</button>
+      <button type="button" disabled title="Próximamente">Seguidor de línea <small>· pronto</small></button>
+      <button type="button" disabled title="Próximamente">Minisumo <small>· pronto</small></button>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <main class="stage">
+      <div class="card toolbar" role="toolbar" aria-label="Controles de la simulación">
+        <button type="button" class="btn primary" id="btnRun">▶ Iniciar</button>
+        <button type="button" class="btn" id="btnReset" title="Reinicia con la misma semilla">⟲ Reiniciar</button>
+        <button type="button" class="btn" id="btnStep" title="Avanza 100 ms">+100 ms</button>
+        <span class="sep" aria-hidden="true"></span>
+        <label class="inline" for="speed">Velocidad
+          <select id="speed">
+            <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+            <option value="2">×2</option><option value="5">×5</option><option value="10">×10</option><option value="40">×40</option><option value="max">máx.</option>
+          </select></label>
+        <label class="inline" for="scenario">Fallas
+          <select id="scenario">
+            <option value="ideal">Ideal</option><option value="realista" selected>Realista</option>
+            <option value="pesimista">Pesimista</option><option value="peor">Peor caso</option><option value="custom">Personalizado</option>
+          </select></label>
+        <label class="inline" for="seed">Semilla <input type="number" id="seed" value="1" min="1" style="width:76px"></label>
+        <button type="button" class="btn" id="btnDice" title="Semilla al azar">🎲</button>
+        <span class="sep" aria-hidden="true"></span>
+        <div class="toggles">
+          <label class="inline"><input type="checkbox" id="optFollow"> Seguir robot</label>
+          <label class="inline"><input type="checkbox" id="optBelief" checked> Mapa del robot</label>
+          <label class="inline"><input type="checkbox" id="optDist"> Distancias</label>
+          <label class="inline"><input type="checkbox" id="optRays" checked> Rayos IR</label>
+          <label class="inline"><input type="checkbox" id="optTrail" checked> Rastro</label>
+        </div>
+      </div>
+
+      <div class="card canvas-box">
+        <canvas id="field" width="1200" height="640" aria-label="Pista del laberinto con el robot"></canvas>
+        <div class="banner" id="banner" hidden></div>
+        <div class="edit-hint" id="editHint" hidden>Modo edición: clic en una línea para poner/quitar pared</div>
+      </div>
+
+      <div class="card status" aria-live="polite">
+        <div class="timer"><small>Cronómetro</small><span id="sTimer">0.00 s</span><span><span class="chip" id="sStatus">Listo</span></span></div>
+        <div class="stat"><div class="k">Llegadas a meta</div><div class="v" id="sRuns">—</div></div>
+        <div class="stat"><div class="k">Choques</div><div class="v" id="sHits">0</div></div>
+        <div class="stat"><div class="k">Sin avanzar</div><div class="v" id="sStuck">0.0 s</div><div class="meter"><i id="sStuckBar"></i></div></div>
+        <div class="stat"><div class="k">Batería / VMOT</div><div class="v" id="sBat">—</div></div>
+        <div class="stat"><div class="k">Agarre llantas</div><div class="v" id="sMu">—</div></div>
+        <div class="stat"><div class="k">Velocidad</div><div class="v" id="sVel">0 mm/s</div></div>
+        <div class="stat"><div class="k">Tiempo simulado</div><div class="v" id="sSimT">0.0 s</div></div>
+      </div>
+
+      <div class="card instr">
+        <div>
+          <h3>Sensores IR (0–1023)</h3>
+          <div class="irbars" id="irbars"></div>
+          <div class="kv">
+            <div><span>Encoder izq.</span><b id="kEncL">0</b></div><div><span>Encoder der.</span><b id="kEncR">0</b></div>
+            <div><span>PWM izq.</span><b id="kPwmL">0</b></div><div><span>PWM der.</span><b id="kPwmR">0</b></div>
+            <div><span>Corriente</span><b id="kI">0 A</b></div><div><span>Recorrido</span><b id="kOdo">0 m</b></div>
+          </div>
+        </div>
+        <div>
+          <h3>Telemetría (últimos 8 s)</h3>
+          <canvas id="tele" width="600" height="120"></canvas>
+          <div class="legend"><span><i style="background:var(--accent)"></i>velocidad (mm/s)</span><span><i style="background:var(--copper)"></i>IR frontal</span><span><i style="background:var(--muted)"></i>PWM izq/der</span></div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="card side">
+      <div class="tabs" role="tablist" aria-label="Paneles">
+        <button role="tab" id="t-code" aria-selected="true" aria-controls="p-code">Código</button>
+        <button role="tab" id="t-fail" aria-selected="false" aria-controls="p-fail">Fallas</button>
+        <button role="tab" id="t-robot" aria-selected="false" aria-controls="p-robot">Robot</button>
+        <button role="tab" id="t-track" aria-selected="false" aria-controls="p-track">Pista</button>
+        <button role="tab" id="t-batch" aria-selected="false" aria-controls="p-batch">Lote</button>
+        <button role="tab" id="t-log" aria-selected="false" aria-controls="p-log">Registro</button>
+        <button role="tab" id="t-help" aria-selected="false" aria-controls="p-help">Ayuda</button>
+      </div>
+
+      <section class="panel" id="p-code" role="tabpanel" aria-labelledby="t-code">
+        <label class="inline" for="prog" style="color:var(--ink);font-weight:600">Estrategia
+          <select id="prog" style="flex:1;min-width:0"></select></label>
+        <p id="progDesc"></p>
+        <div class="row">
+          <div class="seg" role="group" aria-label="Archivo">
+            <button type="button" id="edProg" aria-pressed="true">Programa</button>
+            <button type="button" id="edLib" aria-pressed="false">Librería (motion + maze)</button>
+          </div>
+        </div>
+        <textarea class="code" id="code" spellcheck="false" aria-label="Código del robot"></textarea>
+        <div class="row">
+          <button type="button" class="btn primary" id="btnApply">Aplicar y reiniciar</button>
+          <button type="button" class="btn" id="btnRestore">Restaurar original</button>
+          <label class="inline"><input type="checkbox" id="optStopGoal" checked> Terminar al llegar a la meta</label>
+        </div>
+        <p class="note">El código corre como el loop del Arduino: <code>yield 5</code> espera 5 ms. Los cambios se guardan en este navegador.</p>
+      </section>
+
+      <section class="panel" id="p-fail" role="tabpanel" aria-labelledby="t-fail" hidden>
+        <p>Cada falla se sortea con la semilla, así que la misma semilla repite exactamente la misma corrida. Mover un control cambia a "Personalizado".</p>
+        <div id="failGroups"></div>
+      </section>
+
+      <section class="panel" id="p-robot" role="tabpanel" aria-labelledby="t-robot" hidden>
+        <p>Valores físicos del micromouse (PCB 100 × 100 mm, eje al centro, N20 100:1 con llanta Pololu de 34 mm, L293D, LM7806, LiPo 2S).</p>
+        <div class="formgrid">
+          <label for="rGear">Reductor N20<select id="rGear"><option value="30">30:1 (~1000 rpm)</option><option value="50">50:1 (~600 rpm)</option><option value="100">100:1 (~300 rpm)</option><option value="150">150:1 (~200 rpm)</option></select></label>
+          <label for="rWheel">Diámetro de llanta (mm)<input type="number" id="rWheel" step="0.5" min="20" max="40"></label>
+          <label for="rTrack">Distancia entre llantas (mm)<input type="number" id="rTrack" step="0.5" min="60" max="99"></label>
+          <label for="rMass">Masa (g)<input type="number" id="rMass" step="5" min="80" max="400"></label>
+          <label for="rCap">Batería (mAh)<input type="number" id="rCap" step="50" min="100" max="2000"></label>
+          <label for="rRint">Resistencia interna (Ω)<input type="number" id="rRint" step="0.05" min="0" max="1"></label>
+          <label for="rDrop">Caída LM7806 (V)<input type="number" id="rDrop" step="0.1" min="0" max="3"></label>
+          <label for="rPPR">Pulsos encoder por vuelta del motor<input type="number" id="rPPR" step="1" min="1" max="48"></label>
+          <label for="rL293" style="flex-direction:row;align-items:center;gap:6px;color:var(--ink)"><input type="checkbox" id="rL293"> Caída de voltaje del L293D</label>
+        </div>
+        <div class="row"><button type="button" class="btn primary" id="btnRobotApply">Aplicar y reiniciar</button><button type="button" class="btn" id="btnRobotDefault">Valores originales</button></div>
+        <h3>Sensores IR según la PCB</h3>
+        <div class="tablebox"><table><thead><tr><th>Sensor</th><th>adelante</th><th>izquierda</th><th>ángulo</th></tr></thead><tbody id="sensTable"></tbody></table></div>
+        <p class="note">Los LEDs emisores van directo a VMOT con 120 Ω: siempre están prendidos, así que la luz ambiental se suma a la lectura y el código no la puede restar.</p>
+      </section>
+
+      <section class="panel" id="p-track" role="tabpanel" aria-labelledby="t-track" hidden>
+        <p id="trackInfo"></p>
+        <div class="row">
+          <button type="button" class="btn" id="mzOfficial">Pista oficial</button>
+          <button type="button" class="btn" id="mzMutate">Oficial con cambios</button>
+          <label class="inline" for="mzMutN">paredes <input type="number" id="mzMutN" value="6" min="1" max="40" style="width:56px"></label>
+          <button type="button" class="btn" id="mzRandom">Aleatoria</button>
+          <button type="button" class="btn" id="mzEmpty">Vacía</button>
+        </div>
+        <div class="row">
+          <div class="seg" role="group" aria-label="Edición">
+            <button type="button" id="edNone" aria-pressed="true">Ver</button>
+            <button type="button" id="edWalls" aria-pressed="false">Paredes</button>
+            <button type="button" id="edStart" aria-pressed="false">Inicio</button>
+            <button type="button" id="edGoal" aria-pressed="false">Meta</button>
+          </div>
+          <label class="inline" for="startDir">Inicio mira hacia <select id="startDir"><option value="0">Norte</option><option value="1">Este</option><option value="2">Sur</option><option value="3">Oeste</option></select></label>
+        </div>
+        <div class="formgrid">
+          <label for="mzCell">Celda centro a centro (mm)<input type="number" id="mzCell" step="1" min="140" max="200"></label>
+          <label for="mzWall">Grosor de pared (mm)<input type="number" id="mzWall" step="1" min="4" max="20"></label>
+        </div>
+        <p class="note">La estrategia "Mapa previo" siempre cree que la pista es la oficial. Usen "Oficial con cambios" para ver qué pasa si el día de la competencia la pista no es igual al dibujo.</p>
+        <h3>Archivo de la pista (JSON)</h3>
+        <textarea class="json" id="mzJson" spellcheck="false" aria-label="JSON de la pista"></textarea>
+        <div class="row">
+          <button type="button" class="btn" id="mzCopy">Copiar</button>
+          <button type="button" class="btn" id="mzDownload">Descargar</button>
+          <button type="button" class="btn" id="mzLoadText">Cargar desde el texto</button>
+          <label class="btn" for="mzFile" style="display:inline-block">Abrir archivo…</label><input type="file" id="mzFile" accept=".json,application/json" hidden>
+        </div>
+      </section>
+
+      <section class="panel" id="p-batch" role="tabpanel" aria-labelledby="t-batch" hidden>
+        <p>Corre muchas simulaciones seguidas, cada una con otra semilla (otras fallas). Sirve para comparar estrategias y ver qué tan seguido falla el robot.</p>
+        <div class="formgrid">
+          <label for="bN">Corridas<input type="number" id="bN" value="20" min="1" max="500"></label>
+          <label for="bSeed">Semilla inicial<input type="number" id="bSeed" value="1" min="1"></label>
+          <label for="bVary">Pista<select id="bVary"><option value="no">Siempre la actual</option><option value="mutar">Actual con cambios al azar</option><option value="aleatoria">Aleatoria en cada corrida</option></select></label>
+          <label for="bMax">Tiempo máximo (s)<input type="number" id="bMax" value="180" min="30" max="900"></label>
+        </div>
+        <div class="row"><button type="button" class="btn primary" id="btnBatch">Correr lote</button><button type="button" class="btn danger" id="btnBatchStop" hidden>Detener</button><span id="bMsg" class="note"></span></div>
+        <div class="progress"><i id="bProg"></i></div>
+        <div class="cards" id="bCards"></div>
+        <canvas id="hist" width="400" height="110" aria-label="Histograma de tiempos"></canvas>
+        <div class="tablebox" style="max-height:260px"><table><thead><tr><th>Semilla</th><th>Resultado</th><th>Tiempo</th><th>Choques</th><th></th></tr></thead><tbody id="bRows"></tbody></table></div>
+        <h3>Comparación de lotes</h3>
+        <div class="tablebox"><table><thead><tr><th>Estrategia</th><th>Fallas</th><th>Pista</th><th>Éxito</th><th>Prom.</th><th>Mejor</th></tr></thead><tbody id="bHistory"></tbody></table></div>
+      </section>
+
+      <section class="panel" id="p-log" role="tabpanel" aria-labelledby="t-log" hidden>
+        <div class="row"><label class="inline"><input type="checkbox" id="logUser" checked> Mensajes del robot</label><label class="inline"><input type="checkbox" id="logSys" checked> Eventos</label><button type="button" class="btn" id="logClear">Limpiar</button></div>
+        <div class="log" id="log" aria-live="off"></div>
+      </section>
+
+      <section class="panel help" id="p-help" role="tabpanel" aria-labelledby="t-help" hidden>
+        <h4>Qué se simula</h4>
+        <ul>
+          <li>Pista de la convocatoria: 19 × 10 celdas, pasillos de 14 cm, paredes de 5 cm; inicio abajo a la derecha, meta en el cuarto 2 × 2 con entrada por arriba.</li>
+          <li>El robot de la PCB final: contorno real de 100 × 100 mm, eje al centro, sensores IR en la posición y ángulo de la PCB.</li>
+          <li>Motores N20 con reductor (100:1 ≈ 300 rpm: ~330 mm/s máximo con el L293D), L293D (pierde ~1.5–2.5 V), LM7806 (necesita 2 V de margen) y LiPo 2S que se descarga.</li>
+          <li>MPU-6050: giroscopio con sesgo, deriva y error de escala; acelerómetro con filtro de 44 Hz y vibración de los motores (sirve para detectar choques).</li>
+          <li>Llantas que patinan y se ensucian, encoders que pierden pulsos, giroscopio con deriva, luz ambiental, paredes impresas chuecas, con huecos y de distinto color.</li>
+          <li>Reglas: gana el menor tiempo de INICIO a META (el cronómetro arranca al salir de la celda de inicio); descalifica atorarse 30 s en un pasillo o tumbar una pared.</li>
+        </ul>
+        <h4>API del robot (igual idea que en el Arduino)</h4>
+        <ul>
+          <li><code>r.ir()</code> → {left, dleft, front, dright, right} de 0 a 1023</li>
+          <li><code>r.motors(izq, der)</code> → PWM de −255 a 255</li>
+          <li><code>r.enc()</code> → {l, r} cuentas · <code>r.gyro()</code> → °/s · <code>r.battery()</code> → V</li>
+          <li><code>r.accel()</code> → {x, y} en g (x = adelante, y = izquierda)</li>
+          <li><code>r.millis()</code>, <code>r.micros()</code>, <code>r.log(...)</code>, <code>r.beep()</code>, <code>r.finish()</code></li>
+          <li><code>r.cfg</code> → tamaño de la pista, inicio, meta, cuentas por vuelta y <code>reference</code> (pista oficial)</li>
+          <li><code>yield ms</code> → esperar (como <code>delay</code>). Un ciclo sin <code>yield</code> congela al robot.</li>
+        </ul>
+        <h4>Pasar el código al Arduino</h4>
+        <ul>
+          <li><code>CONF</code> de la librería = <code>pins.h</code>; <code>forward/turn/arc/calibrate</code> = <code>motion.cpp</code>; <code>searchSmooth</code> = <code>strategy.cpp</code>; <code>Maze</code> = <code>maze.cpp</code>.</li>
+          <li>El firmware v2 ya trae esta pista: <code>config.h</code> con 19 × 10, inicio (18, 0) al norte, meta en el cuarto 2 × 2, y el dibujo como mapa previo (<code>prior_map.h</code>).</li>
+        </ul>
+        <h4>Consejos</h4>
+        <ul>
+          <li>Usen la misma semilla para comparar un cambio de código contra otro.</li>
+          <li>Prueben en "Pesimista" y en "Oficial con cambios" antes de confiar en una estrategia.</li>
+          <li>Para comparar vueltas suaves contra girar en su lugar, pongan <code>CONF.SMOOTH_TURNS = false;</code> al inicio de su programa.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/pistas.js"></script>
+<script src="js/programas.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
