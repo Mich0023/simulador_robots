@@ -1,4 +1,4 @@
-# Simulador de Robots ITM
+# Simulador de Robots
 
 Simulador web para probar el código del **micromouse** antes de llevarlo al robot real. Usa la pista de la convocatoria, el robot de nuestra PCB final y muchas de las fallas que pueden pasar el día de la competencia.
 
